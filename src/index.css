@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #050505;
+    color: #e5e7eb;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Industrial telemetry scanline & grid effects */
+.bg-telemetry-grid {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, rgba(31, 41, 55, 0.4) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(31, 41, 55, 0.4) 1px, transparent 1px);
+}
+
+.bg-telemetry-dots {
+  background-size: 20px 20px;
+  background-image: radial-gradient(#374151 1px, transparent 1px);
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.98); }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
