@@ -1,4 +1,112 @@
-export type ViewTab = 'dashboard' | 'telemetry' | 'spatial' | 'agents' | 'simulator' | 'pipeline';
+export type ViewTab = 'dashboard' | 'telemetry' | 'spatial' | 'agents' | 'simulator' | 'pipeline' | 'portfolio' | 'grid-adr';
+
+export interface OpenAdrEvent {
+  eventId: string;
+  eventName: string;
+  programName: string;
+  signalType: 'PRICE_MULTIPLIER' | 'LOAD_DISPATCH' | 'LEVEL';
+  severity: 'NORMAL' | 'HIGH' | 'CRITICAL';
+  status: 'ACTIVE' | 'UPCOMING' | 'COMPLETED';
+  startTime: string;
+  durationMinutes: number;
+  targetCurtailmentKw: number;
+  currentCurtailmentKw: number;
+  incentivePpHourUsd: number;
+  totalEarnedUsd: number;
+  venId: string;
+  automaticBessDispatched: boolean;
+  chillerSetbackApplied: boolean;
+}
+
+export interface EnterpriseUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Chief Sustainability Officer' | 'Lead HVAC Facilities Engineer' | 'BMS Automation Specialist' | 'External ESG Auditor';
+  permissions: string[];
+  ssoProvider: 'Google Workspace' | 'Okta' | 'Microsoft Entra ID';
+  lastActive: string;
+  status: 'ACTIVE' | 'IDLE';
+}
+
+export interface MvBaselineReport {
+  id: string;
+  facility: string;
+  reportingPeriod: string;
+  ipmvpOption: 'Option A: Partially Measured Retrofit' | 'Option B: Retrofit Isolation' | 'Option C: Whole Facility' | 'Option D: Calibrated Simulation';
+  baselineEnergyMwh: number;
+  actualEnergyMwh: number;
+  verifiedSavingsMwh: number;
+  uncertaintyPercent: number;
+  netFinancialSavingsUsd: number;
+  ghgAvoidedTons: number;
+  certificationStatus: 'VERIFIED_LEED_EBOM' | 'PENDING_THIRD_PARTY_AUDIT';
+}
+
+export interface PortfolioBuilding {
+  id: string;
+  name: string;
+  location: string;
+  areaSqm: number;
+  floorsCount: number;
+  euiKwhSqmYear: number;
+  currentPowerKw: number;
+  peakLimitKw: number;
+  baselineDiffPercent: number;
+  carbonTonsYtd: number;
+  leedStatus: 'LEED Platinum' | 'LEED Gold' | 'LEED Silver';
+  primaryChillerType: string;
+  iotGatewayStatus: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
+  activeFaultsCount: number;
+  monthlyEnergySpendUsd: number;
+}
+
+export interface BacnetHilDevice {
+  deviceId: number;
+  deviceName: string;
+  ipAddress: string;
+  port: number;
+  vendor: string;
+  status: 'ONLINE' | 'SIMULATING' | 'DISCONNECTED';
+  rttMs: number;
+  registers: {
+    objectType: 'ANALOG_VALUE' | 'ANALOG_INPUT' | 'BINARY_OUTPUT' | 'MULTISTATE_VALUE';
+    instance: number;
+    description: string;
+    presentValue: number | string;
+    engineeringUnits: string;
+    writable: boolean;
+    safetyRange: [number, number];
+  }[];
+}
+
+export interface BigQueryMlModel {
+  modelId: string;
+  datasetName: string;
+  modelType: 'ARIMA_PLUS' | 'BOOSTED_TREE_REGRESSOR' | 'DNN_REGRESSOR';
+  trainingInterval: string;
+  evaluationLossRmse: number;
+  meanAbsoluteErrorKw: number;
+  trainedDataPoints: number;
+  features: string[];
+  status: 'SERVING' | 'TRAINING' | 'EVALUATING';
+  lastRetrained: string;
+  sqlDefinition: string;
+}
+
+export interface ClosedLoopAuditLog {
+  id: string;
+  timestamp: string;
+  actionTitle: string;
+  targetBmsDevice: string;
+  bacnetRegister: string;
+  previousValue: string;
+  dispatchedValue: string;
+  authorizingAgent: string;
+  hmacSignature: string;
+  validationStatus: 'CONFIRMED' | 'VERIFIED' | 'SAFE_LIMIT_ENFORCED';
+  restorable: boolean;
+}
 
 export interface BuildingTelemetry {
   timestamp: string;

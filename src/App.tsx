@@ -24,6 +24,9 @@ import { MultiAgentRoom } from './components/MultiAgentRoom';
 import { ScenarioSimulator } from './components/ScenarioSimulator';
 import { PipelineMonitor } from './components/PipelineMonitor';
 import { AgentCopilotModal } from './components/AgentCopilotModal';
+import { PortfolioESG } from './components/PortfolioESG';
+import { GridEnterpriseSuite } from './components/GridEnterpriseSuite';
+import { mockPortfolioBuildings } from './data/portfolioData';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -34,6 +37,8 @@ export default function App() {
   const [anomalies, setAnomalies] = useState<AnomalyEvent[]>(mockAnomalies);
   const [agents, setAgents] = useState(mockAgents);
   const [pipelineStreams, setPipelineStreams] = useState(mockPipelineStreams);
+  const [portfolioBuildings, setPortfolioBuildings] = useState(mockPortfolioBuildings);
+  const [selectedPortfolioBldgId, setSelectedPortfolioBldgId] = useState<string>(mockPortfolioBuildings[0].id);
 
   // Selected State
   const [selectedFloorId, setSelectedFloorId] = useState<string>(mockFloors[2].id);
@@ -292,6 +297,18 @@ export default function App() {
             <PipelineMonitor
               streams={pipelineStreams}
             />
+          )}
+
+          {activeTab === 'portfolio' && (
+            <PortfolioESG
+              buildings={portfolioBuildings}
+              selectedBuildingId={selectedPortfolioBldgId}
+              onSelectBuilding={(id) => setSelectedPortfolioBldgId(id)}
+            />
+          )}
+
+          {activeTab === 'grid-adr' && (
+            <GridEnterpriseSuite />
           )}
         </main>
 

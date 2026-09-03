@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { PipelineStream } from '../types';
+import { PipelineStream, BacnetHilDevice, BigQueryMlModel, ClosedLoopAuditLog } from '../types';
+import { mockBacnetHilDevices, mockBigQueryMlModels, mockClosedLoopAuditLogs } from '../data/portfolioData';
 import { 
   Radio, 
   Activity, 
-  Wifi, 
   Cpu, 
   CheckCircle2, 
   AlertTriangle, 
@@ -12,7 +12,15 @@ import {
   Search, 
   Server,
   Zap,
-  Filter
+  Terminal,
+  Database,
+  ShieldCheck,
+  RotateCcw,
+  Send,
+  Sliders,
+  Check,
+  Layers,
+  Code
 } from 'lucide-react';
 
 interface PipelineMonitorProps {
@@ -20,20 +28,75 @@ interface PipelineMonitorProps {
 }
 
 export const PipelineMonitor: React.FC<PipelineMonitorProps> = ({ streams }) => {
+  const [subTab, setSubTab] = useState<'bus' | 'bacnet-hil' | 'bigquery-ml' | 'audit-logs'>('bus');
+  
+  // IoT Protocol Bus State
   const [selectedStreamId, setSelectedStreamId] = useState<string>(streams[0].id);
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // BACnet HIL State
+  const [hilDevices, setHilDevices] = useState<BacnetHilDevice[]>(mockBacnetHilDevices);
+  const [selectedHilDeviceId, setSelectedHilDeviceId] = useState<number>(mockBacnetHilDevices[0].deviceId);
+  const [overrideValue, setOverrideValue] = useState<string>('15.5');
+  const [overrideSuccessMsg, setOverrideSuccessMsg] = useState<string | null>(null);
+  const [apduLogs, setApduLogs] = useState<string[]>([
+    '[14:28:10.102] BACnet-Confirmed-Req: WriteProperty-Request (InvokeID: 42, Obj: AnalogValue:402, Val: 0.0)',
+    '[14:28:10.108] BACnet-Simple-ACK: WriteProperty-ACK received from 192.168.42.34',
+    '[14:28:11.004] I-Am broadcast received from BACnet Device ID 20088 (Trane Tracer SC+)',
+    '[14:28:12.450] BACnet-ReadPropertyMultiple polled 12 analog objects across AHU-03'
+  ]);
+
+  // Closed Loop Audit Logs
+  const [auditLogs, setAuditLogs] = useState<ClosedLoopAuditLog[]>(mockClosedLoopAuditLogs);
 
   const totalPackets = streams.reduce((acc, s) => acc + s.packetsPerSecond, 0);
   const totalDevices = streams.reduce((acc, s) => acc + s.deviceCount, 0);
   const avgLatency = (streams.reduce((acc, s) => acc + s.latencyMs, 0) / streams.length).toFixed(1);
 
   const activeStream = streams.find((s) => s.id === selectedStreamId) || streams[0];
+  const activeHilDevice = hilDevices.find((d) => d.deviceId === selectedHilDeviceId) || hilDevices[0];
 
   const filteredSensors = activeStream.sampleSensors.filter(
     (s) =>
       s.tag.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.metric.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleExecuteHilWrite = (registerInstance: number, regDesc: string) => {
+    const num = parseFloat(overrideValue);
+    if (isNaN(num)) return;
+
+    // Update in local HIL register list
+    setHilDevices((prev) =>
+      prev.map((dev) => {
+        if (dev.deviceId === activeHilDevice.deviceId) {
+          return {
+            ...dev,
+            registers: dev.registers.map((r) =>
+              r.instance === registerInstance ? { ...r, presentValue: num } : r
+            ),
+          };
+        }
+        return dev;
+      })
+    );
+
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const logLine = `[${now}] BACnet-Confirmed-Req: WriteProperty-Request (Obj: AnalogValue:${registerInstance}, Val: ${num}) -> ACK OK`;
+    setApduLogs((prev) => [logLine, ...prev.slice(0, 15)]);
+
+    setOverrideSuccessMsg(`APDU ACK Received: ${regDesc} updated to ${num}`);
+    setTimeout(() => setOverrideSuccessMsg(null), 3500);
+  };
+
+  const handleRollbackAuditLog = (logId: string) => {
+    setAuditLogs((prev) =>
+      prev.map((log) =>
+        log.id === logId ? { ...log, validationStatus: 'CONFIRMED', restorable: false } : log
+      )
+    );
+    alert(`Rollback signal dispatched. Target controller reset to previous safe baseline.`);
+  };
 
   return (
     <div className="space-y-4">
@@ -45,25 +108,25 @@ export const PipelineMonitor: React.FC<PipelineMonitorProps> = ({ streams }) => 
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white">IoT Telemetry Pipeline & Protocol Bus</h2>
+              <h2 className="text-base font-bold text-white">Telemetry Pipeline, BACnet HIL Driver & BigQuery ML</h2>
               <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 rounded">
-                All 5 Gateways Operational
+                Hardware-In-The-Loop Ready
               </span>
             </div>
             <p className="text-xs text-gray-400">
-              Low-latency edge ingestion pipeline polling BACnet MS/TP, Modbus TCP, MQTT Sparkplug B, LoRaWAN, and DALI buses.
+              Low-latency edge protocol ingestion, direct BACnet/IP actuator testing driver, BigQuery ML ARIMA forecasting models, and closed-loop audit logging.
             </p>
           </div>
         </div>
 
         {/* Global Pipeline KPIs */}
-        <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex items-center gap-3 text-xs font-mono">
           <div className="bg-[#050505] px-3 py-1.5 rounded border border-[#1f2937]">
             <span className="text-gray-500 text-[10px] uppercase block font-bold">Total Ingest</span>
             <span className="text-cyan-400 font-bold">{totalPackets.toLocaleString()} msgs/s</span>
           </div>
           <div className="bg-[#050505] px-3 py-1.5 rounded border border-[#1f2937]">
-            <span className="text-gray-500 text-[10px] uppercase block font-bold">Connected Devices</span>
+            <span className="text-gray-500 text-[10px] uppercase block font-bold">Connected Nodes</span>
             <span className="text-emerald-400 font-bold">{totalDevices} Nodes</span>
           </div>
           <div className="bg-[#050505] px-3 py-1.5 rounded border border-[#1f2937]">
@@ -73,103 +136,431 @@ export const PipelineMonitor: React.FC<PipelineMonitorProps> = ({ streams }) => 
         </div>
       </div>
 
-      {/* Protocol Stream Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {streams.map((stream) => {
-          const isSelected = stream.id === selectedStreamId;
-          return (
-            <div
-              key={stream.id}
-              onClick={() => setSelectedStreamId(stream.id)}
-              className={`p-3.5 rounded border transition-all cursor-pointer flex flex-col justify-between ${
-                isSelected
-                  ? 'bg-[#141414] border-emerald-500/80 ring-1 ring-emerald-500/50'
-                  : 'bg-[#0d0d0d] border-[#1f2937] hover:border-gray-700 hover:bg-[#111111]'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-[10px] font-mono text-gray-400 font-semibold uppercase">
-                    {stream.status}
-                  </span>
-                </div>
-                <h4 className="text-xs font-bold text-white leading-tight">{stream.protocol}</h4>
-                <div className="text-[11px] font-mono text-emerald-400 font-bold mt-1">
-                  {stream.packetsPerSecond.toLocaleString()} msgs/sec
-                </div>
-              </div>
+      {/* Sub-Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-[#1f2937] pb-2">
+        <button
+          onClick={() => setSubTab('bus')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+            subTab === 'bus'
+              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/80'
+              : 'text-gray-400 hover:text-white hover:bg-[#141414]'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5" />
+          <span>IoT Telemetry Protocol Bus</span>
+        </button>
 
-              <div className="mt-3 pt-2 border-t border-[#1f2937] grid grid-cols-2 gap-1 text-[10px] font-mono text-gray-400">
-                <div>
-                  <span className="text-gray-500 block">Nodes:</span>
-                  <span className="text-gray-200">{stream.deviceCount}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block">Latency:</span>
-                  <span className="text-cyan-400">{stream.latencyMs}ms</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <button
+          onClick={() => setSubTab('bacnet-hil')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+            subTab === 'bacnet-hil'
+              ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-700/80'
+              : 'text-gray-400 hover:text-white hover:bg-[#141414]'
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>BACnet/IP Hardware-In-The-Loop Driver</span>
+        </button>
+
+        <button
+          onClick={() => setSubTab('bigquery-ml')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+            subTab === 'bigquery-ml'
+              ? 'bg-purple-950/80 text-purple-300 border border-purple-700/80'
+              : 'text-gray-400 hover:text-white hover:bg-[#141414]'
+          }`}
+        >
+          <Database className="w-3.5 h-3.5" />
+          <span>Google BigQuery ML Models</span>
+        </button>
+
+        <button
+          onClick={() => setSubTab('audit-logs')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded transition-colors ${
+            subTab === 'audit-logs'
+              ? 'bg-amber-950/80 text-amber-300 border border-amber-700/80'
+              : 'text-gray-400 hover:text-white hover:bg-[#141414]'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Closed-Loop Audit Logs ({auditLogs.length})</span>
+        </button>
       </div>
 
-      {/* Active Stream Deep-Dive & Sensor Inventory */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        
-        {/* Left Col (8 Cols): Sensor Tag Heartbeat Table */}
-        <div className="xl:col-span-8 bg-[#0d0d0d] border border-[#1f2937] rounded p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[#1f2937] pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>{activeStream.protocol} Live Sensor Register</span>
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Active BACnet Object IDs & Modbus 40000 registers updated at 100ms polling rate.
-              </p>
-            </div>
+      {/* VIEW 1: IOT TELEMETRY BUS */}
+      {subTab === 'bus' && (
+        <div className="space-y-4">
+          {/* Protocol Stream Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {streams.map((stream) => {
+              const isSelected = stream.id === selectedStreamId;
+              return (
+                <div
+                  key={stream.id}
+                  onClick={() => setSelectedStreamId(stream.id)}
+                  className={`p-3.5 rounded border transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-[#10191b] border-cyan-500 shadow-md shadow-cyan-950/40'
+                      : 'bg-[#0a0a0a] border-[#1f2937] hover:border-gray-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white block">{stream.name}</span>
+                      <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
+                        {stream.protocol}
+                      </span>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  </div>
 
-            {/* Search filter */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Filter sensor tag..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-[#050505] border border-[#1f2937] text-xs font-mono text-gray-200 pl-8 pr-3 py-1.5 rounded focus:outline-none focus:border-cyan-500 w-48"
-              />
-            </div>
+                  <div className="mt-3 pt-2.5 border-t border-[#1f2937] grid grid-cols-2 gap-1 text-[11px] font-mono">
+                    <div>
+                      <span className="text-gray-500 text-[9px] block">THROUGHPUT</span>
+                      <span className="text-gray-200 font-bold">{stream.packetsPerSecond} p/s</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[9px] block">LATENCY</span>
+                      <span className="text-emerald-400 font-bold">{stream.latencyMs} ms</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Sensor Register Table */}
+          {/* Detailed Stream Inspector */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-8 bg-[#0d0d0d] border border-[#1f2937] rounded p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[#1f2937] pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-cyan-400" />
+                    <span>{activeStream.name} • Active Registers</span>
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Live payload sampling on edge gateway port {activeStream.port}
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Filter registers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-[#050505] border border-[#1f2937] rounded pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 w-48 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-[#1f2937] text-gray-500 text-[10px] uppercase font-bold">
+                      <th className="py-2 px-3">Sensor Tag ID</th>
+                      <th className="py-2 px-3">Telemetry Metric</th>
+                      <th className="py-2 px-3">Current Telemetry</th>
+                      <th className="py-2 px-3">Data Quality</th>
+                      <th className="py-2 px-3 text-right">Last Ingest</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1f2937] text-gray-300">
+                    {filteredSensors.map((sensor, idx) => (
+                      <tr key={idx} className="hover:bg-[#141414] transition-colors">
+                        <td className="py-2.5 px-3 font-bold text-cyan-400">{sensor.tag}</td>
+                        <td className="py-2.5 px-3 text-gray-200">{sensor.metric}</td>
+                        <td className="py-2.5 px-3 font-bold text-white">{sensor.val}</td>
+                        <td className="py-2.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            sensor.quality === 'GOOD' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60' : 'bg-amber-950/80 text-amber-400 border border-amber-800/60'
+                          }`}>
+                            {sensor.quality}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-gray-500 text-[11px]">
+                          {activeStream.lastIngestTime}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Edge Gateway Diagnostic Info */}
+            <div className="xl:col-span-4 space-y-4">
+              <div className="bg-[#0d0d0d] border border-[#1f2937] rounded p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-[#1f2937] pb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Server className="w-4 h-4 text-emerald-400" />
+                    <span>Edge Gateway Status</span>
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-bold">
+                    ONLINE
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
+                    <span className="text-gray-400">Gateway Hardware:</span>
+                    <span className="text-white font-bold">Advantech UNO-2484G</span>
+                  </div>
+
+                  <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
+                    <span className="text-gray-400">Packet Loss Rate:</span>
+                    <span className="text-emerald-400 font-bold">{activeStream.packetLossPercent}%</span>
+                  </div>
+
+                  <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
+                    <span className="text-gray-400">Buffer Queue Depth:</span>
+                    <span className="text-cyan-400 font-bold">0.02% (Normal)</span>
+                  </div>
+
+                  <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
+                    <span className="text-gray-400">MQTT TLS Cipher:</span>
+                    <span className="text-gray-300">ECDHE-RSA-AES256-GCM</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#1f2937] text-[11px] font-mono text-gray-400 flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-gray-500" />
+                  <span>NTP Stratum 1 Time Synchronized</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: BACNET HARDWARE-IN-THE-LOOP DRIVER */}
+      {subTab === 'bacnet-hil' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Device Selector */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-gray-400 uppercase font-mono">Target BACnet DDC Controllers</h3>
+              {hilDevices.map((dev) => {
+                const isSelected = dev.deviceId === activeHilDevice.deviceId;
+                return (
+                  <div
+                    key={dev.deviceId}
+                    onClick={() => setSelectedHilDeviceId(dev.deviceId)}
+                    className={`p-3.5 rounded border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#10161d] border-cyan-500'
+                        : 'bg-[#0a0a0c] border-[#1f2937] hover:border-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">{dev.deviceName}</span>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60 font-bold">
+                        {dev.rttMs} ms
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1 font-mono">{dev.ipAddress}:{dev.port} • Device #{dev.deviceId}</p>
+                    <span className="text-[10px] text-gray-500 mt-1 block">{dev.vendor}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Register Inspector & WriteProperty Test Bench */}
+            <div className="lg:col-span-2 bg-[#0d0e12] border border-[#1f2937] rounded p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-[#1f2937] pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-cyan-400" />
+                    <span>{activeHilDevice.deviceName} • BACnet Objects</span>
+                  </h3>
+                  <span className="text-[11px] font-mono text-gray-400">ASHRAE Standard 135 Compliant Driver</span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
+                  APDU PING OK
+                </span>
+              </div>
+
+              {overrideSuccessMsg && (
+                <div className="p-2.5 rounded bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs font-mono flex items-center gap-2 animate-in fade-in">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{overrideSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Registers Table */}
+              <div className="space-y-2">
+                {activeHilDevice.registers.map((reg) => (
+                  <div key={reg.instance} className="bg-[#050608] p-3 rounded border border-[#1f2937] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-cyan-400">{reg.objectType}:{reg.instance}</span>
+                        <span className="text-xs text-white font-medium">{reg.description}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-500 block mt-0.5">
+                        Safety Clamp: [{reg.safetyRange[0]} - {reg.safetyRange[1]} {reg.engineeringUnits}]
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-xs font-mono font-bold text-white">
+                          {reg.presentValue} {reg.engineeringUnits}
+                        </span>
+                      </div>
+
+                      {reg.writable && (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            defaultValue={String(reg.presentValue)}
+                            onChange={(e) => setOverrideValue(e.target.value)}
+                            className="w-16 bg-[#0d0e12] border border-[#1f2937] rounded px-2 py-1 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                          />
+                          <button
+                            onClick={() => handleExecuteHilWrite(reg.instance, reg.description)}
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded bg-cyan-600 hover:bg-cyan-500 text-black transition-colors"
+                          >
+                            Write
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Live APDU Trace Console */}
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[10px] font-mono uppercase text-gray-500 font-bold block">Live BACnet APDU Trace</span>
+                <div className="bg-[#040405] p-3 rounded border border-[#1f2937] font-mono text-[11px] text-gray-400 space-y-1 max-h-36 overflow-y-auto">
+                  {apduLogs.map((log, idx) => (
+                    <div key={idx} className={log.includes('ACK') ? 'text-emerald-400' : 'text-gray-400'}>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: GOOGLE BIGQUERY ML MODELS */}
+      {subTab === 'bigquery-ml' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {mockBigQueryMlModels.map((model) => (
+              <div key={model.modelId} className="bg-[#0d0e12] border border-[#1f2937] rounded p-4 space-y-3">
+                <div className="flex items-start justify-between border-b border-[#1f2937] pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-bold text-white">{model.modelId}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-purple-400 mt-0.5 block">{model.datasetName}</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/80 text-purple-400 border border-purple-800/60">
+                    {model.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                  <div className="bg-[#050608] p-2 rounded border border-[#1f2937]">
+                    <span className="text-[9px] text-gray-500 uppercase block">Model Architecture</span>
+                    <span className="text-white font-bold">{model.modelType}</span>
+                  </div>
+                  <div className="bg-[#050608] p-2 rounded border border-[#1f2937]">
+                    <span className="text-[9px] text-gray-500 uppercase block">RMSE Loss</span>
+                    <span className="text-emerald-400 font-bold">{model.evaluationLossRmse}</span>
+                  </div>
+                  <div className="bg-[#050608] p-2 rounded border border-[#1f2937]">
+                    <span className="text-[9px] text-gray-500 uppercase block">MAE Error</span>
+                    <span className="text-cyan-400 font-bold">{model.meanAbsoluteErrorKw} kW</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-mono text-gray-500 uppercase block mb-1">Feature Columns Ingested:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {model.features.map((feat) => (
+                      <span key={feat} className="px-2 py-0.5 bg-[#050608] text-gray-300 text-[10px] font-mono rounded border border-[#1f2937]">
+                        {feat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-mono text-gray-500 uppercase block mb-1">BigQuery ML SQL Definition:</span>
+                  <pre className="bg-[#040405] p-2.5 rounded border border-[#1f2937] text-[10px] font-mono text-gray-400 overflow-x-auto max-h-32">
+                    {model.sqlDefinition}
+                  </pre>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: CLOSED-LOOP AUDIT LOGS */}
+      {subTab === 'audit-logs' && (
+        <div className="bg-[#0d0e12] border border-[#1f2937] rounded p-4 space-y-3">
+          <div className="flex items-center justify-between border-b border-[#1f2937] pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Cryptographic Closed-Loop Mitigation Audit Trail</span>
+              </h3>
+              <p className="text-xs text-gray-400">
+                Immutable ledger of all BACnet setpoints dispatched by Gemini multi-agents with SHA-256 HMAC verification.
+              </p>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-bold">
+              ZERO UNVERIFIED DISPATCHES
+            </span>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-xs">
+            <table className="w-full text-left text-xs font-mono">
               <thead>
                 <tr className="border-b border-[#1f2937] text-gray-500 text-[10px] uppercase font-bold">
-                  <th className="py-2 px-3">Sensor Tag ID</th>
-                  <th className="py-2 px-3">Telemetry Metric</th>
-                  <th className="py-2 px-3">Current Telemetry</th>
-                  <th className="py-2 px-3">Data Quality</th>
-                  <th className="py-2 px-3 text-right">Last Ingest</th>
+                  <th className="py-2.5 px-3">Audit ID & Time</th>
+                  <th className="py-2.5 px-3">Action Description</th>
+                  <th className="py-2.5 px-3">Target BMS Controller</th>
+                  <th className="py-2.5 px-3">Previous Val</th>
+                  <th className="py-2.5 px-3">Dispatched Val</th>
+                  <th className="py-2.5 px-3">Authorizing Agent</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1f2937] text-gray-300">
-                {filteredSensors.map((sensor, idx) => (
-                  <tr key={idx} className="hover:bg-[#141414] transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-cyan-400">{sensor.tag}</td>
-                    <td className="py-2.5 px-3 text-gray-200">{sensor.metric}</td>
-                    <td className="py-2.5 px-3 font-bold text-white">{sensor.val}</td>
-                    <td className="py-2.5 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        sensor.quality === 'GOOD' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60' : 'bg-amber-950/80 text-amber-400 border border-amber-800/60'
-                      }`}>
-                        {sensor.quality}
-                      </span>
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-[#14151b] transition-colors">
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-cyan-400 block">{log.id}</span>
+                      <span className="text-[10px] text-gray-500">{log.timestamp}</span>
                     </td>
-                    <td className="py-2.5 px-3 text-right text-gray-500 text-[11px]">
-                      {activeStream.lastIngestTime}
+                    <td className="py-3 px-3">
+                      <span className="font-semibold text-white block">{log.actionTitle}</span>
+                      <span className="text-[10px] text-gray-500 truncate max-w-[200px] block">{log.bacnetRegister}</span>
+                    </td>
+                    <td className="py-3 px-3 text-gray-400 text-[11px]">{log.targetBmsDevice}</td>
+                    <td className="py-3 px-3 text-rose-400">{log.previousValue}</td>
+                    <td className="py-3 px-3 text-emerald-400 font-bold">{log.dispatchedValue}</td>
+                    <td className="py-3 px-3 text-gray-400 text-[11px]">{log.authorizingAgent}</td>
+                    <td className="py-3 px-3 text-right">
+                      {log.restorable ? (
+                        <button
+                          onClick={() => handleRollbackAuditLog(log.id)}
+                          className="flex items-center gap-1 ml-auto px-2 py-1 text-[10px] font-semibold rounded bg-amber-950/60 hover:bg-amber-900 border border-amber-800/80 text-amber-300 transition-colors"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Rollback</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-gray-500 font-mono">LOCKED</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -177,50 +568,7 @@ export const PipelineMonitor: React.FC<PipelineMonitorProps> = ({ streams }) => 
             </table>
           </div>
         </div>
-
-        {/* Right Col (4 Cols): Edge Gateway Diagnostic Info */}
-        <div className="xl:col-span-4 space-y-4">
-          <div className="bg-[#0d0d0d] border border-[#1f2937] rounded p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-[#1f2937] pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Server className="w-4 h-4 text-emerald-400" />
-                <span>Edge Gateway Status</span>
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-bold">
-                ONLINE
-              </span>
-            </div>
-
-            <div className="space-y-2 text-xs font-mono">
-              <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
-                <span className="text-gray-400">Gateway Hardware:</span>
-                <span className="text-white font-bold">Advantech UNO-2484G</span>
-              </div>
-
-              <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
-                <span className="text-gray-400">Packet Loss Rate:</span>
-                <span className="text-emerald-400 font-bold">{activeStream.packetLossPercent}%</span>
-              </div>
-
-              <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
-                <span className="text-gray-400">Buffer Queue Depth:</span>
-                <span className="text-cyan-400 font-bold">0.02% (Normal)</span>
-              </div>
-
-              <div className="bg-[#050505] p-2.5 rounded border border-[#1f2937] flex justify-between">
-                <span className="text-gray-400">MQTT TLS Cipher:</span>
-                <span className="text-gray-300">ECDHE-RSA-AES256-GCM</span>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-[#1f2937] text-[11px] font-mono text-gray-400 flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-gray-500" />
-              <span>NTP Stratum 1 Time Synchronized</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
+      )}
     </div>
   );
 };

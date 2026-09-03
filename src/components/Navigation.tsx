@@ -7,7 +7,9 @@ import {
   Bot, 
   SlidersHorizontal, 
   Radio, 
-  AlertTriangle 
+  AlertTriangle,
+  Globe2,
+  Zap
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -50,8 +52,18 @@ export const Navigation: React.FC<NavigationProps> = ({
     },
     {
       id: 'pipeline',
-      label: 'Telemetry Pipeline',
+      label: 'HIL & BigQuery ML',
       icon: <Radio className="w-4 h-4" />,
+    },
+    {
+      id: 'portfolio',
+      label: 'Portfolio & Looker Studio',
+      icon: <Globe2 className="w-4 h-4" />,
+    },
+    {
+      id: 'grid-adr',
+      label: 'OpenADR & IPMVP M&V',
+      icon: <Zap className="w-4 h-4" />,
     },
   ];
 
