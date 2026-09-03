@@ -130,6 +130,7 @@ export interface ZoneData {
   reheatValvePercent: number;
   equipmentStatus: 'OPTIMAL' | 'WARNING' | 'FAULT' | 'OFF';
   equipmentType: 'VAV Box + Reheat' | 'Dual Duct AHU' | 'Fan Coil Unit' | 'Precision Chilled Water CRAC' | 'Inverter Sub-Array';
+  currentLoadKw?: number;
   anomalyNote?: string;
   recentHistory: { time: string; temp: number; energy: number; cfm: number }[];
 }
@@ -232,7 +233,9 @@ export interface SimulatorResult {
 
 export interface PipelineStream {
   id: string;
+  name?: string;
   protocol: 'BACnet/IP' | 'Modbus TCP' | 'MQTT Sparkplug B' | 'LoRaWAN IoT' | 'DALI-2 Lighting';
+  port?: number;
   deviceCount: number;
   packetsPerSecond: number;
   latencyMs: number;
