@@ -1,47 +1,4 @@
-export type ViewTab = 'dashboard' | 'telemetry' | 'spatial' | 'agents' | 'simulator' | 'pipeline' | 'portfolio' | 'grid-adr';
-
-export interface OpenAdrEvent {
-  eventId: string;
-  eventName: string;
-  programName: string;
-  signalType: 'PRICE_MULTIPLIER' | 'LOAD_DISPATCH' | 'LEVEL';
-  severity: 'NORMAL' | 'HIGH' | 'CRITICAL';
-  status: 'ACTIVE' | 'UPCOMING' | 'COMPLETED';
-  startTime: string;
-  durationMinutes: number;
-  targetCurtailmentKw: number;
-  currentCurtailmentKw: number;
-  incentivePpHourUsd: number;
-  totalEarnedUsd: number;
-  venId: string;
-  automaticBessDispatched: boolean;
-  chillerSetbackApplied: boolean;
-}
-
-export interface EnterpriseUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Chief Sustainability Officer' | 'Lead HVAC Facilities Engineer' | 'BMS Automation Specialist' | 'External ESG Auditor';
-  permissions: string[];
-  ssoProvider: 'Google Workspace' | 'Okta' | 'Microsoft Entra ID';
-  lastActive: string;
-  status: 'ACTIVE' | 'IDLE';
-}
-
-export interface MvBaselineReport {
-  id: string;
-  facility: string;
-  reportingPeriod: string;
-  ipmvpOption: 'Option A: Partially Measured Retrofit' | 'Option B: Retrofit Isolation' | 'Option C: Whole Facility' | 'Option D: Calibrated Simulation';
-  baselineEnergyMwh: number;
-  actualEnergyMwh: number;
-  verifiedSavingsMwh: number;
-  uncertaintyPercent: number;
-  netFinancialSavingsUsd: number;
-  ghgAvoidedTons: number;
-  certificationStatus: 'VERIFIED_LEED_EBOM' | 'PENDING_THIRD_PARTY_AUDIT';
-}
+export type ViewTab = 'dashboard' | 'telemetry' | 'spatial' | 'agents' | 'simulator' | 'pipeline' | 'portfolio';
 
 export interface PortfolioBuilding {
   id: string;

@@ -25,7 +25,6 @@ import { ScenarioSimulator } from './components/ScenarioSimulator';
 import { PipelineMonitor } from './components/PipelineMonitor';
 import { AgentCopilotModal } from './components/AgentCopilotModal';
 import { PortfolioESG } from './components/PortfolioESG';
-import { GridEnterpriseSuite } from './components/GridEnterpriseSuite';
 import { mockPortfolioBuildings } from './data/portfolioData';
 
 export default function App() {
@@ -305,10 +304,6 @@ export default function App() {
               selectedBuildingId={selectedPortfolioBldgId}
               onSelectBuilding={(id) => setSelectedPortfolioBldgId(id)}
             />
-          )}
-
-          {activeTab === 'grid-adr' && (
-            <GridEnterpriseSuite />
           )}
         </main>
 
