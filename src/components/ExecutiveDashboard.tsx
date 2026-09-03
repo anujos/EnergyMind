@@ -346,40 +346,40 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <div>
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>HVAC & Central Chillers (48%)</span>
-                  <span className="text-cyan-400 font-bold">685 kW</span>
+                  <span className="text-cyan-400 font-bold">{(telemetry.totalPowerKw * 0.48).toFixed(0)} kW</span>
                 </div>
                 <div className="w-full h-1.5 bg-[#1f2937] rounded-full overflow-hidden">
-                  <div className="h-full bg-cyan-400" style={{ width: '48%' }}></div>
+                  <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: '48%' }}></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>Edge Server & Labs (16%)</span>
-                  <span className="text-purple-400 font-bold">228 kW</span>
+                  <span className="text-purple-400 font-bold">{(telemetry.totalPowerKw * 0.16).toFixed(0)} kW</span>
                 </div>
                 <div className="w-full h-1.5 bg-[#1f2937] rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-400" style={{ width: '16%' }}></div>
+                  <div className="h-full bg-purple-400 transition-all duration-500" style={{ width: '16%' }}></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>Lighting & Architectural (18%)</span>
-                  <span className="text-amber-400 font-bold">257 kW</span>
+                  <span className="text-amber-400 font-bold">{(telemetry.totalPowerKw * 0.18).toFixed(0)} kW</span>
                 </div>
                 <div className="w-full h-1.5 bg-[#1f2937] rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-400" style={{ width: '18%' }}></div>
+                  <div className="h-full bg-amber-400 transition-all duration-500" style={{ width: '18%' }}></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>Plug Loads & Elevators (18%)</span>
-                  <span className="text-emerald-400 font-bold">258 kW</span>
+                  <span className="text-emerald-400 font-bold">{(telemetry.totalPowerKw * 0.18).toFixed(0)} kW</span>
                 </div>
                 <div className="w-full h-1.5 bg-[#1f2937] rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400" style={{ width: '18%' }}></div>
+                  <div className="h-full bg-emerald-400 transition-all duration-500" style={{ width: '18%' }}></div>
                 </div>
               </div>
             </div>

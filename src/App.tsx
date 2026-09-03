@@ -44,33 +44,41 @@ export default function App() {
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyEvent | null>(mockAnomalies[0]);
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
 
-  // Live Telemetry Ingestion Engine (1.2s Interval when isLiveStream is active)
+  // Live Telemetry Ingestion Engine (1.0s Interval when isLiveStream is active)
   useEffect(() => {
     if (!isLiveStream) return;
 
     const interval = setInterval(() => {
       const now = new Date();
       const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+      const currentHour = now.getHours();
+
+      let liveTotal = 1420;
+      let liveSolar = 410;
 
       // 1. Update Core Building Telemetry
       setTelemetry((prev) => {
-        // Micro-oscillation for building total power load (+/- 2.5 kW)
-        const loadJitter = (Math.random() - 0.49) * 4.2;
+        // Dynamic oscillation for building total power load (+/- 3.5 kW)
+        const loadJitter = (Math.random() - 0.48) * 5.5;
         const newTotal = Math.max(900, Math.min(1790, +(prev.totalPowerKw + loadJitter).toFixed(1)));
+        liveTotal = newTotal;
 
-        // Solar micro-fluctuation (+/- 1.2 kW)
-        const solarJitter = (Math.random() - 0.5) * 2.2;
+        // Solar micro-fluctuation (+/- 1.8 kW)
+        const solarJitter = (Math.random() - 0.5) * 2.8;
         const newSolar = Math.max(0, +(prev.solarPowerKw + solarJitter).toFixed(1));
+        liveSolar = newSolar;
 
-        // Battery state: if discharging, slowly decrement SOC
+        // Battery state: if discharging, decrement SOC slightly
         let newBessSoc = prev.bessSocPercent;
         if (prev.bessPowerKw > 0) {
-          newBessSoc = Math.max(10, +(prev.bessSocPercent - 0.02).toFixed(2));
+          newBessSoc = Math.max(10, +(prev.bessSocPercent - 0.015).toFixed(2));
         }
 
-        // Ambient temperature micro drift
-        const tempDrift = (Math.random() - 0.5) * 0.06;
+        // Ambient temperature & carbon micro-drift
+        const tempDrift = (Math.random() - 0.5) * 0.08;
         const newOutdoorTemp = +(prev.outdoorTempC + tempDrift).toFixed(1);
+        const carbonJitter = Math.floor((Math.random() - 0.5) * 3);
+        const newCarbon = Math.max(140, Math.min(220, prev.carbonIntensityGPerKwh + carbonJitter));
 
         const newGrid = Math.max(0, +(newTotal - newSolar - (prev.bessPowerKw > 0 ? prev.bessPowerKw : 0)).toFixed(1));
 
@@ -82,6 +90,7 @@ export default function App() {
           gridImportKw: newGrid,
           bessSocPercent: newBessSoc,
           outdoorTempC: newOutdoorTemp,
+          carbonIntensityGPerKwh: newCarbon,
           currentPeakTodayKw: Math.max(prev.currentPeakTodayKw, newTotal),
         };
       });
@@ -98,7 +107,7 @@ export default function App() {
           const updatedSensors = st.sampleSensors.map((sensor) => {
             if (sensor.val.includes('°C')) {
               const num = parseFloat(sensor.val);
-              const drift = (Math.random() - 0.5) * 0.12;
+              const drift = (Math.random() - 0.5) * 0.15;
               return { ...sensor, val: `${(num + drift).toFixed(1)}°C` };
             }
             if (sensor.val.includes('GPM')) {
@@ -108,7 +117,7 @@ export default function App() {
             }
             if (sensor.val.includes('kW')) {
               const num = parseFloat(sensor.val);
-              const drift = (Math.random() - 0.5) * 0.6;
+              const drift = (Math.random() - 0.5) * 0.8;
               return { ...sensor, val: `${(num + drift).toFixed(1)} kW` };
             }
             if (sensor.val.includes('Hz')) {
@@ -129,16 +138,16 @@ export default function App() {
         })
       );
 
-      // 3. Thermal Zone Drift across Building Floors
+      // 3. Thermal Zone Drift & Recalculated Floor Totals
       setFloors((prevFloors) =>
-        prevFloors.map((fl) => ({
-          ...fl,
-          zones: fl.zones.map((z, idx) => {
+        prevFloors.map((fl) => {
+          const updatedZones = fl.zones.map((z, idx) => {
             if (idx % 2 === 0) {
-              const tempJitter = (Math.random() - 0.5) * 0.04;
+              const tempJitter = (Math.random() - 0.5) * 0.05;
               const newTemp = +(z.currentTempC + tempJitter).toFixed(1);
-              const powerJitter = (Math.random() - 0.5) * 0.2;
-              const newLoad = Math.max(1, +(z.currentLoadKw + powerJitter).toFixed(1));
+              const powerJitter = (Math.random() - 0.5) * 0.3;
+              const currentLoad = z.currentLoadKw ?? (z.airflowCfm ? Math.round(z.airflowCfm / 35) : 30);
+              const newLoad = Math.max(1, +(currentLoad + powerJitter).toFixed(1));
               return {
                 ...z,
                 currentTempC: newTemp,
@@ -146,10 +155,39 @@ export default function App() {
               };
             }
             return z;
-          }),
-        }))
+          });
+
+          const totalZoneLoad = updatedZones.reduce((sum, z) => sum + (z.currentLoadKw || 0), 0);
+          const avgZoneTemp = +(updatedZones.reduce((sum, z) => sum + z.currentTempC, 0) / updatedZones.length).toFixed(1);
+
+          return {
+            ...fl,
+            zones: updatedZones,
+            totalLoadKw: totalZoneLoad > 0 ? +totalZoneLoad.toFixed(0) : fl.totalLoadKw,
+            avgTempC: avgZoneTemp,
+          };
+        })
       );
-    }, 1200);
+
+      // 4. Update the Active 24-Hour Telemetry Point in Real Time
+      setTelemetry24h((prev24h) =>
+        prev24h.map((pt) => {
+          // Update current hour or default hour 14
+          if (pt.hour === 14 || pt.hour === currentHour) {
+            return {
+              ...pt,
+              totalKw: liveTotal,
+              solarKw: liveSolar,
+              hvacKw: +(liveTotal * 0.48).toFixed(1),
+              lightingKw: +(liveTotal * 0.18).toFixed(1),
+              plugKw: +(liveTotal * 0.18).toFixed(1),
+              dataCenterKw: +(liveTotal * 0.16).toFixed(1),
+            };
+          }
+          return pt;
+        })
+      );
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [isLiveStream]);
