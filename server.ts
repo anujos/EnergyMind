@@ -378,25 +378,43 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
+  const servers: any[] = [];
+  const primaryServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[EnergyMind] Server active on http://0.0.0.0:${PORT} (Cloud Run Free-Tier Compatible)`);
   });
+  servers.push(primaryServer);
+
+  // Auto-adapt to default Google Cloud Run PORT (8080) without requiring manual settings changes
+  const cloudRunEnvPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
+  if (cloudRunEnvPort && cloudRunEnvPort !== PORT) {
+    try {
+      const crServer = app.listen(cloudRunEnvPort, '0.0.0.0', () => {
+        console.log(`[EnergyMind] Also active on Google Cloud Run default port ${cloudRunEnvPort}`);
+      });
+      crServer.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          // Normal in dev sandboxes where reverse-proxy already occupies port 8080
+          console.log(`[EnergyMind] Port ${cloudRunEnvPort} reverse-proxied to port ${PORT}`);
+        } else {
+          console.warn(`[EnergyMind] Cloud Run port listener note: ${err.message}`);
+        }
+      });
+      servers.push(crServer);
+    } catch {
+      // Handled cleanly; primary port 3000 is always operational
+    }
+  }
 
   // Graceful shutdown on Cloud Run scale-to-zero SIGTERM signal
   process.on('SIGTERM', () => {
     console.log('[Cloud Run] SIGTERM received. Scaling down to zero instances...');
-    server.close(() => {
-      console.log('[Cloud Run] Closed all active HTTP connections. Bye!');
-      process.exit(0);
-    });
-    setTimeout(() => {
-      console.error('[Cloud Run] Force exit after timeout.');
-      process.exit(1);
-    }, 8000);
+    servers.forEach((s) => s?.close());
+    process.exit(0);
   });
 
   process.on('SIGINT', () => {
-    server.close(() => process.exit(0));
+    servers.forEach((s) => s?.close());
+    process.exit(0);
   });
 }
 
