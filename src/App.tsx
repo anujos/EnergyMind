@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BuildingTelemetry, 
   AnomalyEvent, 
@@ -27,24 +27,136 @@ import { AgentCopilotModal } from './components/AgentCopilotModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
+  const [isLiveStream, setIsLiveStream] = useState<boolean>(true);
   const [telemetry, setTelemetry] = useState<BuildingTelemetry>(mockTelemetry);
   const [telemetry24h, setTelemetry24h] = useState(mock24hTelemetry);
   const [floors, setFloors] = useState<FloorData[]>(mockFloors);
   const [anomalies, setAnomalies] = useState<AnomalyEvent[]>(mockAnomalies);
   const [agents, setAgents] = useState(mockAgents);
-  const [pipelineStreams] = useState(mockPipelineStreams);
+  const [pipelineStreams, setPipelineStreams] = useState(mockPipelineStreams);
 
   // Selected State
   const [selectedFloorId, setSelectedFloorId] = useState<string>(mockFloors[2].id);
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyEvent | null>(mockAnomalies[0]);
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
 
+  // Live Telemetry Ingestion Engine (1.2s Interval when isLiveStream is active)
+  useEffect(() => {
+    if (!isLiveStream) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+
+      // 1. Update Core Building Telemetry
+      setTelemetry((prev) => {
+        // Micro-oscillation for building total power load (+/- 2.5 kW)
+        const loadJitter = (Math.random() - 0.49) * 4.2;
+        const newTotal = Math.max(900, Math.min(1790, +(prev.totalPowerKw + loadJitter).toFixed(1)));
+
+        // Solar micro-fluctuation (+/- 1.2 kW)
+        const solarJitter = (Math.random() - 0.5) * 2.2;
+        const newSolar = Math.max(0, +(prev.solarPowerKw + solarJitter).toFixed(1));
+
+        // Battery state: if discharging, slowly decrement SOC
+        let newBessSoc = prev.bessSocPercent;
+        if (prev.bessPowerKw > 0) {
+          newBessSoc = Math.max(10, +(prev.bessSocPercent - 0.02).toFixed(2));
+        }
+
+        // Ambient temperature micro drift
+        const tempDrift = (Math.random() - 0.5) * 0.06;
+        const newOutdoorTemp = +(prev.outdoorTempC + tempDrift).toFixed(1);
+
+        const newGrid = Math.max(0, +(newTotal - newSolar - (prev.bessPowerKw > 0 ? prev.bessPowerKw : 0)).toFixed(1));
+
+        return {
+          ...prev,
+          timestamp: timeString,
+          totalPowerKw: newTotal,
+          solarPowerKw: newSolar,
+          gridImportKw: newGrid,
+          bessSocPercent: newBessSoc,
+          outdoorTempC: newOutdoorTemp,
+          currentPeakTodayKw: Math.max(prev.currentPeakTodayKw, newTotal),
+        };
+      });
+
+      // 2. Update IoT Pipeline Streams & Live Sensor Registers
+      setPipelineStreams((prevStreams) =>
+        prevStreams.map((st) => {
+          const packetJitter = Math.floor((Math.random() - 0.5) * 18);
+          const newPackets = Math.max(80, st.packetsPerSecond + packetJitter);
+          const latencyJitter = +((Math.random() - 0.5) * 0.3).toFixed(1);
+          const newLatency = Math.max(1.5, +(st.latencyMs + latencyJitter).toFixed(1));
+
+          // Jitter numerical sensor values in active registers
+          const updatedSensors = st.sampleSensors.map((sensor) => {
+            if (sensor.val.includes('°C')) {
+              const num = parseFloat(sensor.val);
+              const drift = (Math.random() - 0.5) * 0.12;
+              return { ...sensor, val: `${(num + drift).toFixed(1)}°C` };
+            }
+            if (sensor.val.includes('GPM')) {
+              const num = parseFloat(sensor.val);
+              const drift = (Math.random() - 0.5) * 0.4;
+              return { ...sensor, val: `${(num + drift).toFixed(1)} GPM` };
+            }
+            if (sensor.val.includes('kW')) {
+              const num = parseFloat(sensor.val);
+              const drift = (Math.random() - 0.5) * 0.6;
+              return { ...sensor, val: `${(num + drift).toFixed(1)} kW` };
+            }
+            if (sensor.val.includes('Hz')) {
+              const num = parseFloat(sensor.val);
+              const drift = (Math.random() - 0.5) * 0.1;
+              return { ...sensor, val: `${(num + drift).toFixed(1)} Hz` };
+            }
+            return sensor;
+          });
+
+          return {
+            ...st,
+            packetsPerSecond: newPackets,
+            latencyMs: newLatency,
+            lastIngestTime: timeString,
+            sampleSensors: updatedSensors,
+          };
+        })
+      );
+
+      // 3. Thermal Zone Drift across Building Floors
+      setFloors((prevFloors) =>
+        prevFloors.map((fl) => ({
+          ...fl,
+          zones: fl.zones.map((z, idx) => {
+            if (idx % 2 === 0) {
+              const tempJitter = (Math.random() - 0.5) * 0.04;
+              const newTemp = +(z.currentTempC + tempJitter).toFixed(1);
+              const powerJitter = (Math.random() - 0.5) * 0.2;
+              const newLoad = Math.max(1, +(z.currentLoadKw + powerJitter).toFixed(1));
+              return {
+                ...z,
+                currentTempC: newTemp,
+                currentLoadKw: newLoad,
+              };
+            }
+            return z;
+          }),
+        }))
+      );
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [isLiveStream]);
+
   // Quick BESS Dispatch Handler from Dashboard
   const handleQuickBessDispatch = () => {
     setTelemetry((prev) => ({
       ...prev,
       bessPowerKw: 160.0,
-      totalPowerKw: Math.max(900, prev.totalPowerKw - 160),
+      totalPowerKw: Math.max(900, +(prev.totalPowerKw - 160).toFixed(1)),
+      gridImportKw: Math.max(0, +(prev.gridImportKw - 160).toFixed(1)),
     }));
   };
 
@@ -112,8 +224,8 @@ export default function App() {
       <Header
         telemetry={telemetry}
         activeAnomalies={anomalies}
-        isLiveStream={true}
-        setIsLiveStream={() => {}}
+        isLiveStream={isLiveStream}
+        setIsLiveStream={setIsLiveStream}
         onOpenCopilot={() => setIsCopilotOpen(true)}
         onOpenAnomalyModal={handleSelectAnomalyAndNavigate}
       />

@@ -60,15 +60,31 @@ export const Header: React.FC<HeaderProps> = ({
                   Industrial v4.2
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 flex items-center gap-1.5 font-mono">
+              <p className="text-[11px] text-gray-500 flex items-center gap-1.5 font-mono flex-wrap">
                 <Building2 className="w-3 h-3 text-gray-600" />
-                <span>Cyber Tower HQ • 145,000 m² • LEED Platinum</span>
+                <span>Cyber Tower HQ • 145,000 m²</span>
+                <span className="text-gray-700">•</span>
+                <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>LIVE {telemetry.timestamp}</span>
+                </span>
               </p>
             </div>
           </div>
 
           {/* Mobile Actions */}
           <div className="flex items-center gap-2 xl:hidden">
+            <button
+              onClick={() => setIsLiveStream(!isLiveStream)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-bold rounded border transition-all ${
+                isLiveStream
+                  ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-400'
+                  : 'bg-[#0d0d0d] border-[#1f2937] text-gray-400'
+              }`}
+            >
+              {isLiveStream ? <Pause className="w-3 h-3 text-emerald-400" /> : <Play className="w-3 h-3 text-gray-400" />}
+              <span>{isLiveStream ? 'LIVE' : 'PAUSED'}</span>
+            </button>
             <button
               onClick={onOpenCopilot}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded border border-cyan-500/30 bg-cyan-950/30 text-cyan-400 hover:bg-cyan-500 hover:text-black transition-colors"
